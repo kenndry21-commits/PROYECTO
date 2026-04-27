@@ -51,6 +51,7 @@ import {
   deleteInvoice,
   generateInvoiceNumber,
   getInvoiceStats,
+  loadInvoicesFromDB,
 } from "../utils/storage"
 import { ValidationAlert } from "../components/ValidationAlert"
 import { TemplateSelector } from "../components/TemplateSelector"
@@ -68,6 +69,11 @@ export default function App() {
     telefono: "",
     observaciones: "",
   })
+  const [inventarioProducts, setInventarioProducts] = useState<any[]>([])
+  const [margenActivo, setMargenActivo] = useState(false)
+  const [itemsConMargen, setItemsConMargen] = useState<string[]>([])
+const [margenPorcentaje, setMargenPorcentaje] = useState(10)
+const [stockSugerencias, setStockSugerencias] = useState<any[]>([])
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>("")
@@ -122,8 +128,14 @@ export default function App() {
 
   // Cargar facturas guardadas al iniciar
   useEffect(() => {
-    setFacturasSaved(getStoredInvoices())
+    loadInvoicesFromDB().then(invoices => setFacturasSaved(invoices))
   }, [])
+  // Cargar productos del inventario
+useEffect(() => {
+  fetch('/api/products')
+    .then(res => res.json())
+    .then(data => setInventarioProducts(data))
+}, [])
 
   // Calcular totales por vehículo y total general
   const calculateTotals = (): Totals => {
@@ -205,20 +217,47 @@ export default function App() {
   }
 
   // Funciones para manejar items
-  const agregarItem = () => {
-    if (item.nombre && item.descripcion && item.unidad && item.precio) {
-      const newItem: InvoiceItem = {
-        id: Date.now().toString(),
-        vehicleId: selectedVehicleId || "default", // Usar "default" si no hay vehículo
-        nombre: item.nombre,
-        descripcion: item.descripcion,
-        unidad: Number.parseFloat(item.unidad),
-        precio: Number.parseFloat(item.precio),
+const agregarItem = async () => {
+  if (item.nombre && item.descripcion && item.unidad && item.precio) {
+    const newItem: InvoiceItem = {
+      id: Date.now().toString(),
+      vehicleId: selectedVehicleId || "default",
+      nombre: item.nombre,
+      descripcion: item.descripcion,
+      unidad: Number.parseFloat(item.unidad),
+      precio: Number.parseFloat(item.precio),
+    }
+    setItems([...items, newItem])
+    setItem({ nombre: "", descripcion: "", unidad: "", precio: "" })
+
+    // Verificar stock si existe en inventario
+    try {
+      const res = await fetch('/api/products')
+      const products = await res.json()
+      const product = products.find((p: any) => 
+        p.name.toLowerCase() === item.nombre.toLowerCase()
+      )
+      if (product) {
+        const cantidadUsada = Number.parseFloat(item.unidad)
+        const stockRestante = Math.max(0, product.stock - cantidadUsada)
+        
+        await fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...product, stock: stockRestante })
+        })
+
+        if (stockRestante === 0) {
+          alert(`⚠️ STOCK AGOTADO: ${product.name} ya no tiene existencias`)
+        } else if (stockRestante <= 5) {
+          alert(`⚠️ STOCK BAJO: Solo quedan ${stockRestante} ${product.unit} de ${product.name}`)
+        }
       }
-      setItems([...items, newItem])
-      setItem({ nombre: "", descripcion: "", unidad: "", precio: "" })
+    } catch (error) {
+      console.error('Error verificando stock:', error)
     }
   }
+}
 
   const eliminarItem = (id: string) => {
     setItems(items.filter((it) => it.id !== id))
@@ -379,10 +418,10 @@ export default function App() {
 
   // Filtrar facturas
   const facturasFiltradas = facturasSaved.filter((factura) => {
-    const matchesSearch =
-      factura.infoGeneral.numeroFactura.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      factura.infoGeneral.nombreCliente.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesType = filterType === "todos" || factura.infoGeneral.tipoDocumento === filterType
+   const matchesSearch =
+  (factura.infoGeneral?.numeroFactura?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+  (factura.infoGeneral?.nombreCliente?.toLowerCase() || "").includes(searchTerm.toLowerCase())
+    const matchesType = filterType === "todos" || factura.infoGeneral?.tipoDocumento === filterType
     return matchesSearch && matchesType
   })
 
@@ -739,27 +778,27 @@ TOTAL VEHÍCULO: ${formatCurrency(vehicleTotal?.total || 0)}
                         <div className="flex items-center gap-3 mb-2">
                           <span
                             className={`px-2 py-1 rounded text-xs font-medium ${
-                              factura.infoGeneral.tipoDocumento === "factura"
+                              factura.infoGeneral?.tipoDocumento === "factura"
                                 ? "bg-blue-100 text-blue-800"
                                 : "bg-green-100 text-green-800"
                             }`}
                           >
-                            {factura.infoGeneral.tipoDocumento === "factura" ? "📄 FACTURA" : "✅ COTIZACIÓN"}
+                            {factura.infoGeneral?.tipoDocumento === "factura" ? "📄 FACTURA" : "✅ COTIZACIÓN"}
                           </span>
-                          <span className="font-semibold text-gray-800">#{factura.infoGeneral.numeroFactura}</span>
+                          <span className="font-semibold text-gray-800">#{factura.infoGeneral?.numeroFactura}</span>
                           <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
                             {factura.vehicles?.length || 0} vehículo(s)
                           </span>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-gray-600">
                           <div>
-                            <strong>Cliente:</strong> {factura.infoGeneral.nombreCliente}
+                            <strong>Cliente:</strong> {factura.infoGeneral?.nombreCliente}
                           </div>
                           <div>
-                            <strong>Fecha:</strong> {factura.infoGeneral.fecha}
+                            <strong>Fecha:</strong> {factura.infoGeneral?.fecha}
                           </div>
                           <div>
-                            <strong>Total:</strong> {formatCurrency(factura.totales.total)}
+                            <strong>Total:</strong> {formatCurrency(factura.totales?.total)}
                           </div>
                         </div>
                       </div>
@@ -1221,16 +1260,69 @@ TOTAL VEHÍCULO: ${formatCurrency(vehicleTotal?.total || 0)}
               </div>
 
               <div className="grid md:grid-cols-5 gap-3 p-3 bg-gray-50 rounded-lg mb-4">
-                <div>
-                  <input
-                    type="text"
-                    placeholder="Nombre del repuesto"
-                    value={item.nombre}
-                    onChange={(e) => setItem({ ...item, nombre: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    onKeyPress={(e) => handleKeyPress(e, agregarItem)}
-                  />
-                </div>
+                <div className="relative">
+  <input
+    type="text"
+    placeholder="Nombre del repuesto"
+    value={item.nombre}
+   onChange={async (e) => {
+  setItem({ ...item, nombre: e.target.value })
+  const query = e.target.value.toLowerCase()
+  if (query.length > 0) {
+    try {
+      const res = await fetch('/api/products')
+      const products = await res.json()
+      const sugerencias = products.filter((p: any) =>
+        p.name.toLowerCase().includes(query)
+      )
+      setStockSugerencias(sugerencias)
+    } catch {
+      setStockSugerencias([])
+    }
+  } else {
+    setStockSugerencias([])
+  }
+}}
+    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none"
+    onKeyPress={(e) => handleKeyPress(e, agregarItem)}
+  />
+  {stockSugerencias.length > 0 && (
+  <div className="mt-1 border border-gray-200 rounded-md shadow-sm overflow-hidden w-64">
+    {stockSugerencias.map((p: any) => (
+      <div
+        key={p.id}
+        onClick={() => {
+         setItem({ 
+  ...item, 
+  nombre: p.name, 
+  descripcion: p.description,
+  precio: margenActivo 
+    ? (p.price * (1 + margenPorcentaje / 100)).toFixed(2)
+    : p.price.toString() 
+})
+          setStockSugerencias([])
+        }}
+        className="px-3 py-2 cursor-pointer hover:bg-gray-50 flex justify-between items-center border-b last:border-b-0"
+      >
+        <span className="font-medium text-gray-800">{p.name}</span>
+        <span className={`text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap ${
+          p.stock <= 0 
+            ? 'bg-red-100 text-red-700' 
+            : p.stock <= 5 
+            ? 'bg-yellow-100 text-yellow-700' 
+            : 'bg-green-100 text-green-700'
+        }`}>
+          {p.stock <= 0 
+            ? '❌ Sin stock' 
+            : p.stock <= 5 
+            ? `⚠️ ${p.stock} ${p.unit}` 
+            : `✅ ${p.stock} ${p.unit}`}
+        </span>
+      </div>
+    ))}
+  </div>
+)}
+</div>
                 <div>
                   <input
                     type="text"
@@ -1386,6 +1478,34 @@ TOTAL VEHÍCULO: ${formatCurrency(vehicleTotal?.total || 0)}
                             >
                               <Trash2 size={16} />
                             </button>
+                            <button
+ onClick={() => {
+    const tieneMargen = itemsConMargen.includes(item.id)
+    if (tieneMargen) {
+      setItems(items.map(i => 
+        i.id === item.id 
+          ? { ...i, precio: i.precio / (1 + margenPorcentaje / 100) }
+          : i
+      ))
+      setItemsConMargen(itemsConMargen.filter(id => id !== item.id))
+    } else {
+      setItems(items.map(i => 
+        i.id === item.id 
+          ? { ...i, precio: i.precio * (1 + margenPorcentaje / 100) }
+          : i
+      ))
+      setItemsConMargen([...itemsConMargen, item.id])
+    }
+  }}
+ className={`text-xs px-2 py-1 rounded transition-colors text-white ${
+    itemsConMargen.includes(item.id)
+      ? 'bg-green-500 hover:bg-green-600'
+      : 'bg-yellow-500 hover:bg-yellow-600'
+  }`}
+  title="Aplicar margen"
+>
+  {itemsConMargen.includes(item.id) ? '✅' : '+'}{margenPorcentaje}%
+  </button>
                           </div>
                         </div>
                       )}

@@ -1,6 +1,21 @@
-import type { GeneralInfo, Vehicle, InvoiceItem, Service, Totals, SavedInvoice, InvoiceStats } from "../types/invoice"
+import type { GeneralInfo, Vehicle, InvoiceItem, Service, Totals, SavedInvoice } from "@/types/invoice"
 
-const STORAGE_KEY = "invoices_data"
+let cachedInvoices: SavedInvoice[] = []
+
+export async function loadInvoicesFromDB(): Promise<SavedInvoice[]> {
+  try {
+    const res = await fetch('/api/invoices')
+    const data = await res.json()
+    cachedInvoices = data.map((row: any) => JSON.parse(row.data))
+    return cachedInvoices
+  } catch {
+    return []
+  }
+}
+
+export function generateInvoiceNumber(): string {
+  return `FAC-${Date.now()}`
+}
 
 export function saveInvoice(
   infoGeneral: GeneralInfo,
@@ -17,96 +32,39 @@ export function saveInvoice(
     items,
     servicios,
     totales,
-    fechaCreacion: new Date().toISOString(),
     template,
+    fechaGuardado: new Date().toISOString(),
   }
 
-  const existingInvoices = getStoredInvoices()
-  const updatedInvoices = [...existingInvoices, invoice]
+  cachedInvoices = [invoice, ...cachedInvoices]
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedInvoices))
+  fetch('/api/invoices', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: invoice.id, data: invoice })
+  })
+
   return invoice
 }
 
-export function updateInvoice(
-  id: string,
-  infoGeneral: GeneralInfo,
-  vehicles: Vehicle[],
-  items: InvoiceItem[],
-  servicios: Service[],
-  totales: Totals,
-  template = "modern",
-): SavedInvoice | null {
-  const existingInvoices = getStoredInvoices()
-  const invoiceIndex = existingInvoices.findIndex((inv) => inv.id === id)
-
-  if (invoiceIndex === -1) return null
-
-  const updatedInvoice: SavedInvoice = {
-    ...existingInvoices[invoiceIndex],
-    infoGeneral,
-    vehicles,
-    items,
-    servicios,
-    totales,
-    template,
-  }
-
-  existingInvoices[invoiceIndex] = updatedInvoice
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(existingInvoices))
-
-  return updatedInvoice
+export function updateInvoice(invoice: SavedInvoice): void {
+  cachedInvoices = cachedInvoices.map(i => i.id === invoice.id ? invoice : i)
+  fetch('/api/invoices', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: invoice.id, data: invoice })
+  })
 }
 
 export function getStoredInvoices(): SavedInvoice[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? JSON.parse(stored) : []
-  } catch (error) {
-    console.error("Error loading invoices:", error)
-    return []
-  }
+  return cachedInvoices
 }
 
-export function deleteInvoice(id: string): boolean {
-  try {
-    const existingInvoices = getStoredInvoices()
-    const filteredInvoices = existingInvoices.filter((inv) => inv.id !== id)
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(filteredInvoices))
-    return true
-  } catch (error) {
-    console.error("Error deleting invoice:", error)
-    return false
-  }
+export async function deleteInvoice(id: string): Promise<void> {
+  cachedInvoices = cachedInvoices.filter(i => i.id !== id)
+  await fetch(`/api/invoices?id=${id}`, { method: 'DELETE' })
 }
 
-export function generateInvoiceNumber(): string {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, "0")
-  const day = String(now.getDate()).padStart(2, "0")
-  const time = String(now.getHours()).padStart(2, "0") + String(now.getMinutes()).padStart(2, "0")
-
-  return `F${year}${month}${day}-${time}`
-}
-
-// Alias for backwards compatibility
-export const getInvoices = getStoredInvoices
-
-export function getInvoiceStats(): InvoiceStats {
-  const invoices = getStoredInvoices()
-
-  const facturas = invoices.filter((inv) => inv.infoGeneral.tipoDocumento === "factura")
-  const cotizaciones = invoices.filter((inv) => inv.infoGeneral.tipoDocumento === "cotizacion")
-
-  const montoTotal = invoices.reduce((sum, inv) => sum + inv.totales.total, 0)
-  const promedioFactura = invoices.length > 0 ? montoTotal / invoices.length : 0
-
-  return {
-    totalFacturas: facturas.length,
-    totalCotizaciones: cotizaciones.length,
-    montoTotal,
-    promedioFactura,
-  }
+export function getInvoiceStats() {
+  return { total: cachedInvoices.length, thisMonth: 0, totalRevenue: 0 }
 }

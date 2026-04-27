@@ -907,7 +907,6 @@ const generatePDFHTML = (
             <div class="footer-message">¡Gracias por confiar en nuestros servicios!</div>
             <div class="footer-subtitle">Este documento fue generado automáticamente por el Sistema de Facturación Mecatrónica - ${currentDate}</div>
             <div class="footer-features">
-                <div class="footer-feature">✅ Garantía de 6 meses en servicios</div>
                 <div class="footer-feature">🔧 Repuestos originales</div>
                 <div class="footer-feature">👨‍🔧 Técnicos certificados</div>
             </div>
