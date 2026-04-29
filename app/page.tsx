@@ -1259,7 +1259,7 @@ TOTAL VEHÍCULO: ${formatCurrency(vehicleTotal?.total || 0)}
                 </h3>
               </div>
 
-              <div className="grid md:grid-cols-5 gap-3 p-3 bg-gray-50 rounded-lg mb-4">
+              <div className="grid gap-3 p-3 bg-gray-50 rounded-lg mb-4" style={{gridTemplateColumns: '3fr 3fr 1.5fr 3fr auto'}}>
                 <div className="relative">
   <input
     type="text"
@@ -1374,7 +1374,7 @@ TOTAL VEHÍCULO: ${formatCurrency(vehicleTotal?.total || 0)}
                     <div key={item.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
                       {editingItemId === item.id ? (
                         // Modo edición
-                        <div className="grid md:grid-cols-6 gap-3">
+                        <div className="grid gap-3" style={{gridTemplateColumns: '3fr 3fr 1.5fr 3fr 1.5fr auto'}}>
                           <div>
                             <input
                               type="text"
@@ -1445,7 +1445,7 @@ TOTAL VEHÍCULO: ${formatCurrency(vehicleTotal?.total || 0)}
                         </div>
                       ) : (
                         // Modo visualización
-                        <div className="grid md:grid-cols-6 gap-3">
+                        <div className="grid gap-3" style={{gridTemplateColumns: '3fr 3fr 1.5fr 3fr 1.5fr auto'}}>
                           <div className="flex items-center">
                             <span className="text-sm font-medium text-gray-800">{item.nombre}</span>
                           </div>
