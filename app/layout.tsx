@@ -16,6 +16,23 @@ export default function RootLayout({
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
 
+  // Full-screen mode for the mobile app route
+  if (pathname?.startsWith('/movil')) {
+    return (
+      <html lang="es">
+        <head>
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+          <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet" />
+          <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+        </head>
+        <body style={{ margin: 0, padding: 0, overflow: 'hidden' }}>
+          {children}
+        </body>
+      </html>
+    )
+  }
+
   return (
     <html lang="es">
       <body className={inter.className}>
@@ -70,6 +87,16 @@ export default function RootLayout({
               >
                 <span className="text-base leading-none">📦</span>
                 {!collapsed && <span>Inventario</span>}
+              </button>
+              <button
+                onClick={() => router.push("/movil")}
+                title={collapsed ? "App Móvil" : undefined}
+                className={`w-full px-3 py-2 rounded mb-1 text-sm flex items-center gap-2 transition-colors ${
+                  collapsed ? "justify-center" : "text-left"
+                } text-gray-300 hover:bg-gray-700`}
+              >
+                <span className="text-base leading-none">📱</span>
+                {!collapsed && <span>App Móvil</span>}
               </button>
             </nav>
 
